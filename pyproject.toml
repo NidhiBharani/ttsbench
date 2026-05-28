@@ -20,6 +20,13 @@ dependencies = [
 piper = [
     "piper-tts>=1.4",
 ]
+asr = [
+    "faster-whisper>=1.1",
+]
+phoneme = [
+    "torch>=2.2",
+    "transformers>=4.40",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",

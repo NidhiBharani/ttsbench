@@ -74,6 +74,38 @@ class Dataset(BaseModel):
     items: list[DatasetItem]
 
 
+class PatternMatch(BaseModel):
+    pattern: str
+    matched: bool
+    # Phoneme error rate of this pattern against the produced phonemes (None if
+    # phoneme evaluation did not run). Lower is better; matched = per <= tolerance.
+    per: float | None = None
+
+
+class PronunciationResult(BaseModel):
+    """Pronunciation result for one (item, repeat).
+
+    Pass/fail is driven by phoneme distance (sound-based, robust to digit/word
+    spelling). The ASR word transcript is kept as advisory human-readable context.
+    """
+
+    run_id: str
+    dataset: str
+    item_id: str
+    repeat_index: int
+    input: str
+    category: str
+    severity: Severity
+    advisory: bool
+    audio_path: str | None
+    pattern_matches: list[PatternMatch]
+    passed: bool
+    produced_phonemes: str | None = None  # space-joined recognized phonemes
+    # Advisory ASR output (does not affect pass/fail); raw kept for high severity.
+    transcript: str | None = None
+    raw_transcript: str | None = None
+
+
 class SynthesisRecord(BaseModel):
     """One synthesis result, serialized as a single JSONL record."""
 

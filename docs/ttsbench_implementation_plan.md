@@ -13,8 +13,8 @@ for each remaining phase.
 | **2** Piper adapter | `adapters/piper.py`, `synthesize` command | Done — real WAV synthesis works, 15 tests pass |
 | **3** Local latency benchmark | `benchmarks/latency.py`, `reports/csv_report.py`, real `run` | Done — first shippable milestone; real Piper run verified, 23 tests pass |
 | **4** Healthcare dataset | dataset schema, `healthcare.yaml`, `validate` | Done — 30 items, validate passes, 30 tests pass |
-| **5** Pronunciation + ASR | `asr_roundtrip.py`, `expected_form_match.py`, `pronunciation.py` | Not started |
-| **6** Markdown report | `markdown_report.py`, `report` command | Not started |
+| **5** Pronunciation (phoneme) | `phoneme_match.py`, `phoneme_recognizer.py`, `pronunciation.py` | Done — phoneme round-trip (espeak ref + wav2vec2), Whisper kept advisory; verified, 37 tests pass |
+| **6** Markdown report | `markdown_report.py`, `report` command | Done — portable report.md, standalone regen verified, 43 tests pass |
 | **7** Kokoro adapter | `adapters/kokoro.py` (MLX/MPS) | Not started |
 | **8** Coqui XTTS v2 | `adapters/coqui_xtts.py` | Not started |
 | **9** Compare command | `ttsbench compare` | Not started |
@@ -66,10 +66,17 @@ produces a valid WAV; metadata records `execution_mode: local` and the actual ba
 
 - **4** Healthcare dataset: pydantic dataset schema in `schemas.py`, `datasets/healthcare.yaml`
   (~30 items), real `ttsbench validate` with stats.
-- **5** Pronunciation: `faster-whisper` ASR (`evaluators/asr_roundtrip.py`),
-  `expected_form_match.py` (lowercase / strip punctuation / collapse whitespace / hyphen->space
-  substring match), `benchmarks/pronunciation.py` with `--asr-workers`, SHA-256 ASR cache;
-  extend `run` to `--suite latency,pronunciation`.
+- **5** Pronunciation (phoneme round-trip): pass/fail is sound-based, not word-based, to avoid
+  ASR language-model "corrections" (e.g. "Cho"->"show") and digit/word normalization noise
+  ("500"=="five hundred"). Reference phonemes come from espeak-ng (bundled with Piper); produced
+  phonemes from a wav2vec2 eSpeak CTC recognizer (`evaluators/phoneme_recognizer.py`, decoded from
+  `vocab.json` to avoid the `phonemizer`/system-espeak dependency). Matching is approximate-
+  substring phoneme error rate with a tolerance (default 0.30) in `evaluators/phoneme_match.py`.
+  faster-whisper word ASR is kept as **advisory** human-readable context only. SHA-256 caches for
+  both recognizers; `run` gains `--suite latency,pronunciation`, `--phoneme-tolerance`, `--no-asr`.
+  Verified on healthcare: pass rate rose from ~12% (word ASR, full of false negatives) to ~52%
+  (phoneme), with remaining failures being genuine — e.g. Piper does not expand "mg" to
+  "milligrams". The legacy `expected_form_match.py` (word substring matcher) remains for reference.
 - **6** `reports/markdown_report.py` + standalone `ttsbench report --run … --format md`
   regenerating from artifacts with relative audio links.
 

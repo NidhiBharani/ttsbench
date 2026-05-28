@@ -18,60 +18,139 @@ _NOT_IMPLEMENTED = "not implemented yet"
 def run(
     output: str = typer.Option(..., "--output", "-o", help="Run output directory."),
     provider: str = typer.Option("piper", "--provider", help="TTS provider/adapter."),
-    suite: str = typer.Option("latency", "--suite", help="Comma-separated suites."),
+    suite: str = typer.Option("latency", "--suite", help="Comma-separated: latency,pronunciation."),
     text: list[str] = typer.Option(None, "--text", help="Text to synthesize (repeatable)."),
-    dataset: str | None = typer.Option(None, "--dataset", help="Dataset file."),
-    repeats: int = typer.Option(5, "--repeats", help="Repeats per text (default 5 local)."),
+    dataset: str | None = typer.Option(None, "--dataset", help="Dataset YAML file."),
+    repeats: int = typer.Option(5, "--repeats", help="Repeats per item (default 5 local)."),
     voice: str | None = typer.Option(None, "--voice", help="Voice name."),
     device: str | None = typer.Option(None, "--device", help="Requested device."),
+    asr_workers: int = typer.Option(2, "--asr-workers", help="Evaluation worker pool size."),
+    asr_model: str = typer.Option("base.en", "--asr-model", help="faster-whisper (advisory)."),
+    phoneme_model: str = typer.Option(
+        "facebook/wav2vec2-lv-60-espeak-cv-ft", "--phoneme-model", help="Phoneme recognizer."
+    ),
+    phoneme_tolerance: float = typer.Option(
+        0.30, "--phoneme-tolerance", help="Max phoneme error rate to count a pattern as matched."
+    ),
+    no_asr: bool = typer.Option(False, "--no-asr", help="Skip the advisory word transcript."),
     fail_on: str | None = typer.Option(None, "--fail-on", help="Reserved; not yet used."),
 ) -> None:
-    """Run a benchmark suite against a provider."""
+    """Run one or more benchmark suites against a provider."""
     from datetime import datetime, timezone
     from pathlib import Path
 
     from ttsbench.benchmarks.latency import BenchmarkItem, benchmark_latency
     from ttsbench.reports.csv_report import write_csv
     from ttsbench.reports.summary import write_summary
+    from ttsbench.schemas import Dataset, DatasetItem, Severity
 
     suites = [s.strip() for s in suite.split(",") if s.strip()]
-    unsupported = [s for s in suites if s != "latency"]
+    allowed = {"latency", "pronunciation"}
+    unsupported = [s for s in suites if s not in allowed]
     if unsupported:
-        raise typer.BadParameter(
-            f"suite(s) {unsupported} not implemented yet (latency only for now)"
-        )
+        raise typer.BadParameter(f"unknown suite(s) {unsupported}; allowed: {sorted(allowed)}")
+    if not suites:
+        raise typer.BadParameter("provide at least one --suite")
     if provider != "piper":
         raise typer.BadParameter(f"provider '{provider}' is not implemented yet")
-    if dataset is not None:
-        raise typer.BadParameter("datasets are added in Phase 4; use --text for now")
-    if not text:
-        raise typer.BadParameter("provide at least one --text")
+    if "pronunciation" in suites and not dataset:
+        raise typer.BadParameter("the pronunciation suite requires --dataset")
+    if not dataset and not text:
+        raise typer.BadParameter("provide --dataset or at least one --text")
     if fail_on is not None:
         typer.echo("note: --fail-on is reserved and currently ignored")
 
     from ttsbench.adapters.piper import PiperAdapter
 
-    adapter = PiperAdapter(voice=voice, device=device)
+    if dataset:
+        from ttsbench.datasets import load_dataset
 
+        ds = load_dataset(dataset)
+    else:
+        ds = Dataset(
+            name="adhoc",
+            items=[
+                DatasetItem(id=f"item{i:03d}", input=t, category="adhoc", severity=Severity.LOW)
+                for i, t in enumerate(text)
+            ],
+        )
+
+    adapter = PiperAdapter(voice=voice, device=device)
     run_id = f"{provider}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
     out_dir = Path(output)
     audio_dir = out_dir / "audio"
-    items = [BenchmarkItem(id=f"item{i:03d}", text=t) for i, t in enumerate(text)]
-
-    records = benchmark_latency(
-        adapter, items, repeats, run_id, suite="latency", audio_dir=audio_dir
-    )
-
     out_dir.mkdir(parents=True, exist_ok=True)
-    metadata_path = out_dir / "metadata.jsonl"
-    with metadata_path.open("w") as fh:
+
+    records = []
+    pron_results = []
+
+    if "latency" in suites:
+        items = [
+            BenchmarkItem(
+                id=item.id, text=item.input, dataset_item_id=(item.id if dataset else None)
+            )
+            for item in ds.items
+        ]
+        records += benchmark_latency(
+            adapter,
+            items,
+            repeats,
+            run_id,
+            suite="latency",
+            dataset=ds.name if dataset else None,
+            audio_dir=audio_dir,
+        )
+
+    if "pronunciation" in suites:
+        from ttsbench.benchmarks.pronunciation import benchmark_pronunciation
+        from ttsbench.evaluators.asr_roundtrip import CachingASR, FasterWhisperASR
+        from ttsbench.evaluators.phoneme_match import EspeakReference
+        from ttsbench.evaluators.phoneme_recognizer import (
+            CachingPhonemeRecognizer,
+            Wav2Vec2PhonemeRecognizer,
+        )
+
+        recognizer = CachingPhonemeRecognizer(
+            Wav2Vec2PhonemeRecognizer(model_name=phoneme_model, device=device or "cpu"),
+            out_dir / ".phoneme_cache.json",
+        )
+        asr = (
+            None
+            if no_asr
+            else CachingASR(FasterWhisperASR(model_size=asr_model), out_dir / ".asr_cache.json")
+        )
+        p_records, pron_results = benchmark_pronunciation(
+            adapter,
+            ds,
+            repeats,
+            run_id,
+            recognizer,
+            run_dir=out_dir,
+            audio_dir=audio_dir,
+            reference=EspeakReference(),
+            tolerance=phoneme_tolerance,
+            asr=asr,
+            workers=asr_workers,
+        )
+        records += p_records
+
+    with (out_dir / "metadata.jsonl").open("w") as fh:
         for record in records:
             fh.write(record.model_dump_json() + "\n")
-
     write_csv(records, out_dir / "metrics.csv")
-    summary_path = write_summary(records, out_dir / "summary.txt")
 
-    typer.echo(f"Wrote {len(records)} records to {out_dir}/")
+    if pron_results:
+        with (out_dir / "pronunciation_results.jsonl").open("w") as fh:
+            for result in pron_results:
+                fh.write(result.model_dump_json() + "\n")
+
+    summary_path = write_summary(records, out_dir / "summary.txt", pronunciation=pron_results)
+
+    from ttsbench.reports.markdown_report import write_markdown_report
+
+    write_markdown_report(out_dir)
+
+    typer.echo(f"Wrote {len(records)} synthesis record(s) to {out_dir}/")
     typer.echo(summary_path.read_text())
 
 
@@ -144,9 +223,24 @@ def validate(
 
 
 @app.command()
-def report() -> None:
-    """Generate a report from an existing run directory."""
-    typer.echo(f"report: {_NOT_IMPLEMENTED}")
+def report(
+    run: str = typer.Option(..., "--run", help="Run output directory."),
+    output_format: str = typer.Option("md", "--format", help="Report format (md)."),
+) -> None:
+    """Generate a report from an existing run directory (no re-synthesis)."""
+    from pathlib import Path
+
+    if output_format != "md":
+        raise typer.BadParameter(f"format '{output_format}' not supported (md only)")
+
+    run_dir = Path(run)
+    if not (run_dir / "metadata.jsonl").exists():
+        raise typer.BadParameter(f"no metadata.jsonl found in {run_dir}")
+
+    from ttsbench.reports.markdown_report import write_markdown_report
+
+    path = write_markdown_report(run_dir)
+    typer.echo(f"Wrote {path}")
 
 
 @app.command()

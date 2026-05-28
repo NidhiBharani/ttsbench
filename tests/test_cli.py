@@ -19,7 +19,7 @@ def test_help_runs():
 
 
 def test_stub_commands_report_not_implemented():
-    for command in ("compare", "report"):
+    for command in ("compare",):
         result = runner.invoke(app, [command])
         assert result.exit_code == 0
         assert "not implemented yet" in result.output
