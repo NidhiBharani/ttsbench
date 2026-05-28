@@ -50,6 +50,30 @@ def render_timing(value: float | int | None) -> str:
     return NOT_APPLICABLE if value is None else str(value)
 
 
+class Severity(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class DatasetItem(BaseModel):
+    """One dataset line: input text plus the spoken forms it must contain."""
+
+    id: str
+    input: str
+    category: str
+    severity: Severity
+    # All patterns are required (every one must match) for the item to pass.
+    expected_spoken_contains: list[str] = Field(default_factory=list)
+    # Code-switched items pass/fail is advisory only, not a hard signal.
+    advisory: bool = False
+
+
+class Dataset(BaseModel):
+    name: str
+    items: list[DatasetItem]
+
+
 class SynthesisRecord(BaseModel):
     """One synthesis result, serialized as a single JSONL record."""
 

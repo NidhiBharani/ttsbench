@@ -34,6 +34,9 @@ class PiperAdapter(TTSAdapter):
         self._loaded: Any | None = None
         self._sample_rate = 22050
 
+    def load(self) -> None:
+        self._load()
+
     def _load(self) -> Any:
         if self._loaded is not None:
             return self._loaded

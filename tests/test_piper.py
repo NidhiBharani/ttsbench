@@ -93,3 +93,44 @@ def test_synthesize_cli_rejects_unknown_provider(tmp_path):
     )
     assert result.exit_code != 0
     assert not out.exists()
+
+
+def test_run_cli_produces_run_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(PiperAdapter, "_load", lambda self: _FakeVoice())
+    out = tmp_path / "run1"
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--provider",
+            "piper",
+            "--suite",
+            "latency",
+            "--text",
+            "Hello world",
+            "--repeats",
+            "3",
+            "--output",
+            str(out),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert (out / "metadata.jsonl").exists()
+    assert (out / "metrics.csv").exists()
+    assert (out / "summary.txt").exists()
+    assert (out / "audio" / "item000_r0.wav").exists()
+    assert (out / "audio" / "item000_r2.wav").exists()
+
+    lines = (out / "metadata.jsonl").read_text().strip().splitlines()
+    assert len(lines) == 3
+    assert "latency summary" in (out / "summary.txt").read_text()
+
+
+def test_run_cli_rejects_unimplemented_suite(tmp_path):
+    out = tmp_path / "run2"
+    result = runner.invoke(
+        app,
+        ["run", "--text", "hi", "--suite", "pronunciation", "--output", str(out)],
+    )
+    assert result.exit_code != 0
+    assert not out.exists()

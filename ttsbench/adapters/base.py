@@ -41,6 +41,13 @@ SynthesisOutput = AsyncIterator[AudioChunk] | SynthesisResult
 class TTSAdapter(ABC):
     """Base class every TTS adapter implements."""
 
+    def load(self) -> None:  # noqa: B027  (intentional optional no-op hook, not abstract)
+        """Eagerly load the model so model-load time can be measured separately.
+
+        Default is a no-op (cloud/provider-hosted adapters have nothing to load).
+        Local adapters override this to load weights up front.
+        """
+
     @property
     @abstractmethod
     def provider(self) -> str:
@@ -48,18 +55,15 @@ class TTSAdapter(ABC):
 
     @property
     @abstractmethod
-    def execution_mode(self) -> ExecutionMode:
-        ...
+    def execution_mode(self) -> ExecutionMode: ...
 
     @property
     @abstractmethod
-    def model(self) -> str:
-        ...
+    def model(self) -> str: ...
 
     @property
     @abstractmethod
-    def voice(self) -> str:
-        ...
+    def voice(self) -> str: ...
 
     @property
     @abstractmethod
@@ -78,13 +82,11 @@ class TTSAdapter(ABC):
 
     @property
     @abstractmethod
-    def sample_rate(self) -> int:
-        ...
+    def sample_rate(self) -> int: ...
 
     @property
     @abstractmethod
-    def audio_format(self) -> AudioFormat:
-        ...
+    def audio_format(self) -> AudioFormat: ...
 
     @property
     @abstractmethod
@@ -93,8 +95,7 @@ class TTSAdapter(ABC):
 
     @property
     @abstractmethod
-    def streaming_mode(self) -> StreamingMode:
-        ...
+    def streaming_mode(self) -> StreamingMode: ...
 
     @abstractmethod
     def synthesize(self, text: str, voice: str | None = None, **params: Any) -> SynthesisOutput:

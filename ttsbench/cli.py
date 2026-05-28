@@ -15,9 +15,64 @@ _NOT_IMPLEMENTED = "not implemented yet"
 
 
 @app.command()
-def run() -> None:
+def run(
+    output: str = typer.Option(..., "--output", "-o", help="Run output directory."),
+    provider: str = typer.Option("piper", "--provider", help="TTS provider/adapter."),
+    suite: str = typer.Option("latency", "--suite", help="Comma-separated suites."),
+    text: list[str] = typer.Option(None, "--text", help="Text to synthesize (repeatable)."),
+    dataset: str | None = typer.Option(None, "--dataset", help="Dataset file."),
+    repeats: int = typer.Option(5, "--repeats", help="Repeats per text (default 5 local)."),
+    voice: str | None = typer.Option(None, "--voice", help="Voice name."),
+    device: str | None = typer.Option(None, "--device", help="Requested device."),
+    fail_on: str | None = typer.Option(None, "--fail-on", help="Reserved; not yet used."),
+) -> None:
     """Run a benchmark suite against a provider."""
-    typer.echo(f"run: {_NOT_IMPLEMENTED}")
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from ttsbench.benchmarks.latency import BenchmarkItem, benchmark_latency
+    from ttsbench.reports.csv_report import write_csv
+    from ttsbench.reports.summary import write_summary
+
+    suites = [s.strip() for s in suite.split(",") if s.strip()]
+    unsupported = [s for s in suites if s != "latency"]
+    if unsupported:
+        raise typer.BadParameter(
+            f"suite(s) {unsupported} not implemented yet (latency only for now)"
+        )
+    if provider != "piper":
+        raise typer.BadParameter(f"provider '{provider}' is not implemented yet")
+    if dataset is not None:
+        raise typer.BadParameter("datasets are added in Phase 4; use --text for now")
+    if not text:
+        raise typer.BadParameter("provide at least one --text")
+    if fail_on is not None:
+        typer.echo("note: --fail-on is reserved and currently ignored")
+
+    from ttsbench.adapters.piper import PiperAdapter
+
+    adapter = PiperAdapter(voice=voice, device=device)
+
+    run_id = f"{provider}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    out_dir = Path(output)
+    audio_dir = out_dir / "audio"
+    items = [BenchmarkItem(id=f"item{i:03d}", text=t) for i, t in enumerate(text)]
+
+    records = benchmark_latency(
+        adapter, items, repeats, run_id, suite="latency", audio_dir=audio_dir
+    )
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    metadata_path = out_dir / "metadata.jsonl"
+    with metadata_path.open("w") as fh:
+        for record in records:
+            fh.write(record.model_dump_json() + "\n")
+
+    write_csv(records, out_dir / "metrics.csv")
+    summary_path = write_summary(records, out_dir / "summary.txt")
+
+    typer.echo(f"Wrote {len(records)} records to {out_dir}/")
+    typer.echo(summary_path.read_text())
 
 
 @app.command()
@@ -54,9 +109,38 @@ def compare() -> None:
 
 
 @app.command()
-def validate() -> None:
-    """Validate a dataset file."""
-    typer.echo(f"validate: {_NOT_IMPLEMENTED}")
+def validate(
+    path: str = typer.Argument(..., help="Path to a dataset YAML file."),
+) -> None:
+    """Validate a dataset file and print category/severity stats."""
+    from pydantic import ValidationError
+
+    from ttsbench.datasets import load_dataset, validate_dataset
+
+    try:
+        dataset = load_dataset(path)
+    except ValidationError as exc:
+        typer.echo(f"Schema invalid: {path}")
+        typer.echo(str(exc))
+        raise typer.Exit(code=1) from exc
+
+    report = validate_dataset(dataset)
+    typer.echo(f"Dataset '{dataset.name}': {report.total} items")
+    typer.echo("  By category:")
+    for category, count in sorted(report.per_category.items()):
+        typer.echo(f"    {category}: {count}")
+    typer.echo("  By severity:")
+    for severity in ("high", "medium", "low"):
+        if severity in report.per_severity:
+            typer.echo(f"    {severity}: {report.per_severity[severity]}")
+    typer.echo(f"  Advisory items: {report.advisory_count}")
+
+    if report.warnings:
+        typer.echo(f"  {len(report.warnings)} warning(s):")
+        for warning in report.warnings:
+            typer.echo(f"    - {warning}")
+    else:
+        typer.echo("  OK: no warnings")
 
 
 @app.command()

@@ -11,8 +11,8 @@ for each remaining phase.
 | **0** Repo skeleton | pyproject, CLI stubs, Makefile, CI, README | Done |
 | **1** Adapter interface + runtime | `base.py`, `schemas.py`, `runtime.py`, fake-adapter tests | Done — 11 tests pass, `ttsbench runtime` works |
 | **2** Piper adapter | `adapters/piper.py`, `synthesize` command | Done — real WAV synthesis works, 15 tests pass |
-| **3** Local latency benchmark | `benchmarks/latency.py`, `reports/csv_report.py`, real `run` | Not started (stub) |
-| **4** Healthcare dataset | dataset schema, `healthcare.yaml`, `validate` | Not started |
+| **3** Local latency benchmark | `benchmarks/latency.py`, `reports/csv_report.py`, real `run` | Done — first shippable milestone; real Piper run verified, 23 tests pass |
+| **4** Healthcare dataset | dataset schema, `healthcare.yaml`, `validate` | Done — 30 items, validate passes, 30 tests pass |
 | **5** Pronunciation + ASR | `asr_roundtrip.py`, `expected_form_match.py`, `pronunciation.py` | Not started |
 | **6** Markdown report | `markdown_report.py`, `report` command | Not started |
 | **7** Kokoro adapter | `adapters/kokoro.py` (MLX/MPS) | Not started |

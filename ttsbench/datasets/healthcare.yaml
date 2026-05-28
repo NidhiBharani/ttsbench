@@ -1,0 +1,264 @@
+# TTSBench healthcare dataset (v1).
+#
+# ~30 hand-crafted items representing text a healthcare voice agent actually says.
+# expected_spoken_contains entries are REQUIRED substrings: an item passes only
+# when every pattern is found in the normalized transcript. Normalization
+# (applied to both transcript and patterns) is: lowercase, strip punctuation,
+# collapse whitespace, hyphens -> spaces. So patterns are lowercase words, the
+# spelled-out spoken form (e.g. "twenty milligrams"), not the written input.
+#
+# Many medication/dosage items intentionally use clinical shorthand (BID, mcg,
+# x5d). These are expected to surface pronunciation failures, which is the point:
+# pass/fail is a signal for human review, not a verdict.
+
+name: healthcare
+items:
+  # --- Appointment confirmations with non-Anglo doctor names ---
+  - id: appt_001
+    input: "Your appointment with Dr. Iyer is on Tuesday at 3:30 PM."
+    category: appointment
+    severity: medium
+    expected_spoken_contains:
+      - "iyer"
+      - "tuesday"
+      - "three thirty"
+
+  - id: appt_002
+    input: "Dr. Nguyen will see you in room 4 at 9 AM."
+    category: appointment
+    severity: medium
+    expected_spoken_contains:
+      - "nguyen"
+      - "room"
+      - "nine"
+
+  - id: appt_003
+    input: "Please arrive fifteen minutes before your visit with Dr. Okonkwo."
+    category: appointment
+    severity: medium
+    expected_spoken_contains:
+      - "fifteen minutes"
+      - "okonkwo"
+
+  - id: appt_004
+    input: "Your follow-up with Dr. Rodriguez is confirmed for next Monday."
+    category: appointment
+    severity: medium
+    expected_spoken_contains:
+      - "rodriguez"
+      - "monday"
+
+  # --- Doctor name pronunciation (high: getting a clinician's name wrong erodes trust) ---
+  - id: name_001
+    input: "Dr. Patel's office is on the third floor."
+    category: doctor_name
+    severity: high
+    expected_spoken_contains:
+      - "patel"
+      - "third floor"
+
+  - id: name_002
+    input: "Dr. Mehta prescribed a new medication for you."
+    category: doctor_name
+    severity: high
+    expected_spoken_contains:
+      - "mehta"
+      - "medication"
+
+  - id: name_003
+    input: "You are scheduled with Dr. Cho next week."
+    category: doctor_name
+    severity: high
+    expected_spoken_contains:
+      - "cho"
+      - "next week"
+
+  # --- Medications, dosages, and frequency abbreviations (high: dosing safety) ---
+  - id: med_001
+    input: "Take Amox-Clav 625mg BID x5d."
+    category: medication_dosage
+    severity: high
+    expected_spoken_contains:
+      - "amoxicillin clavulanate"
+      - "six hundred twenty five milligrams"
+      - "twice daily"
+      - "five days"
+
+  - id: med_002
+    input: "Take Metformin 500 mg twice daily with meals."
+    category: medication_dosage
+    severity: high
+    expected_spoken_contains:
+      - "metformin"
+      - "five hundred milligrams"
+      - "twice daily"
+
+  - id: med_003
+    input: "Lisinopril 10 mg once daily."
+    category: medication_dosage
+    severity: high
+    expected_spoken_contains:
+      - "lisinopril"
+      - "ten milligrams"
+      - "once daily"
+
+  - id: med_004
+    input: "Atorvastatin 20 mg at bedtime."
+    category: medication_dosage
+    severity: high
+    expected_spoken_contains:
+      - "atorvastatin"
+      - "twenty milligrams"
+      - "bedtime"
+
+  - id: med_005
+    input: "Levothyroxine 75 mcg every morning."
+    category: medication_dosage
+    severity: high
+    expected_spoken_contains:
+      - "levothyroxine"
+      - "seventy five micrograms"
+      - "morning"
+
+  - id: med_006
+    input: "Ibuprofen 200 mg every 6 hours as needed."
+    category: medication_dosage
+    severity: high
+    expected_spoken_contains:
+      - "ibuprofen"
+      - "two hundred milligrams"
+      - "every six hours"
+
+  - id: med_007
+    input: "Albuterol inhaler, two puffs every 4 to 6 hours."
+    category: medication_dosage
+    severity: high
+    expected_spoken_contains:
+      - "albuterol"
+      - "two puffs"
+      - "every four to six hours"
+
+  - id: med_008
+    input: "Amoxicillin 500 mg three times a day for 7 days."
+    category: medication_dosage
+    severity: high
+    expected_spoken_contains:
+      - "amoxicillin"
+      - "five hundred milligrams"
+      - "three times a day"
+      - "seven days"
+
+  # --- Dates in ambiguous numeric formats ---
+  - id: date_001
+    input: "Your appointment is on 05/06."
+    category: date
+    severity: medium
+    expected_spoken_contains:
+      - "may sixth"
+
+  - id: date_002
+    input: "The lab results will be ready by 12/01."
+    category: date
+    severity: medium
+    expected_spoken_contains:
+      - "december first"
+
+  - id: date_003
+    input: "Your prescription expires on 03/15/2026."
+    category: date
+    severity: medium
+    expected_spoken_contains:
+      - "march fifteenth"
+      - "twenty twenty six"
+
+  - id: date_004
+    input: "Schedule your screening before 09/30."
+    category: date
+    severity: medium
+    expected_spoken_contains:
+      - "september thirtieth"
+
+  # --- Times in 12-hour and 24-hour forms ---
+  - id: time_001
+    input: "Your appointment is at 3:30 PM."
+    category: time
+    severity: medium
+    expected_spoken_contains:
+      - "three thirty"
+
+  - id: time_002
+    input: "Please check in at 14:45."
+    category: time
+    severity: medium
+    expected_spoken_contains:
+      - "fourteen forty five"
+
+  - id: time_003
+    input: "The pharmacy closes at 9:00 PM."
+    category: time
+    severity: low
+    expected_spoken_contains:
+      - "nine"
+
+  - id: time_004
+    input: "Your infusion starts at 08:15."
+    category: time
+    severity: medium
+    expected_spoken_contains:
+      - "eight fifteen"
+
+  # --- Insurance and member IDs (high: a wrong digit blocks claims) ---
+  - id: ins_001
+    input: "Your member ID is 5 5 2 9 1."
+    category: insurance_id
+    severity: high
+    expected_spoken_contains:
+      - "five five two nine one"
+
+  - id: ins_002
+    input: "Your group number is 4 4 7 1."
+    category: insurance_id
+    severity: high
+    expected_spoken_contains:
+      - "four four seven one"
+
+  - id: ins_003
+    input: "Confirm the last four digits of your ID: 8 0 3 6."
+    category: insurance_id
+    severity: high
+    expected_spoken_contains:
+      - "eight zero three six"
+
+  - id: ins_004
+    input: "Your claim reference is 7 7 1 2 9 0."
+    category: insurance_id
+    severity: high
+    expected_spoken_contains:
+      - "seven seven one two nine zero"
+
+  # --- Code-switched advisory items (Hinglish, Spanglish): advisory pass/fail only ---
+  - id: cs_001
+    input: "Aapka appointment Dr. Sharma ke saath kal subah hai."
+    category: code_switch
+    severity: low
+    advisory: true
+    expected_spoken_contains:
+      - "appointment"
+      - "sharma"
+
+  - id: cs_002
+    input: "Su cita con el Dr. Garcia es manana a las tres."
+    category: code_switch
+    severity: low
+    advisory: true
+    expected_spoken_contains:
+      - "garcia"
+      - "tres"
+
+  - id: cs_003
+    input: "Please apni medicine subah aur shaam lena."
+    category: code_switch
+    severity: low
+    advisory: true
+    expected_spoken_contains:
+      - "medicine"
