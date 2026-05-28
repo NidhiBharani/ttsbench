@@ -12,6 +12,15 @@ from pathlib import Path
 
 DEFAULT_PIPER_VOICE = "en_US-lessac-medium"
 
+DEFAULT_KOKORO_VOICE = "af_heart"
+_KOKORO_RELEASE = (
+    "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0"
+)
+_KOKORO_FILES = {
+    "kokoro-v1.0.onnx": f"{_KOKORO_RELEASE}/kokoro-v1.0.onnx",
+    "voices-v1.0.bin": f"{_KOKORO_RELEASE}/voices-v1.0.bin",
+}
+
 
 def piper_model_dir() -> Path:
     """Directory where Piper voice models are cached.
@@ -53,3 +62,35 @@ def resolve_piper_voice(
 
     download_voice(name, directory)
     return model_path
+
+
+def kokoro_model_dir() -> Path:
+    """Directory for cached Kokoro ONNX model + voices, override with TTSBENCH_KOKORO_DIR."""
+    env = os.environ.get("TTSBENCH_KOKORO_DIR")
+    return Path(env) if env else Path.home() / ".cache" / "ttsbench" / "kokoro"
+
+
+def resolve_kokoro_files(
+    model_dir: Path | None = None, download: bool = True
+) -> tuple[Path, Path]:
+    """Resolve the Kokoro ONNX model and voices files, downloading them if missing.
+
+    Returns ``(model_path, voices_path)``.
+    """
+    directory = model_dir or kokoro_model_dir()
+    paths = {name: directory / name for name in _KOKORO_FILES}
+
+    missing = [name for name, path in paths.items() if not path.exists()]
+    if missing and not download:
+        raise FileNotFoundError(
+            f"Kokoro files missing in {directory}: {missing}. "
+            "Download them or set TTSBENCH_KOKORO_DIR."
+        )
+    if missing:
+        import urllib.request
+
+        directory.mkdir(parents=True, exist_ok=True)
+        for name in missing:
+            urllib.request.urlretrieve(_KOKORO_FILES[name], paths[name])
+
+    return paths["kokoro-v1.0.onnx"], paths["voices-v1.0.bin"]
