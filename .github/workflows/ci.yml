@@ -15,7 +15,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install
-        run: pip install -e ".[dev]"
+        # piper ships a lightweight bundled eSpeak that the pronunciation tests
+        # exercise for real (no model download), so it must be present in CI.
+        run: pip install -e ".[dev,piper]"
 
       - name: Lint
         run: |

@@ -73,6 +73,7 @@ def benchmark_pronunciation(
     }
 
     def evaluate(record: SynthesisRecord) -> PronunciationResult:
+        assert record.dataset_item_id is not None  # always set in the pronunciation suite
         item = by_id[record.dataset_item_id]
         wav_path = run_dir / record.audio_path if record.audio_path else None
 

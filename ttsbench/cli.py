@@ -42,7 +42,13 @@ def run(
     from ttsbench.benchmarks.latency import BenchmarkItem, benchmark_latency
     from ttsbench.reports.csv_report import write_csv
     from ttsbench.reports.summary import write_summary
-    from ttsbench.schemas import Dataset, DatasetItem, Severity
+    from ttsbench.schemas import (
+        Dataset,
+        DatasetItem,
+        PronunciationResult,
+        Severity,
+        SynthesisRecord,
+    )
 
     suites = [s.strip() for s in suite.split(",") if s.strip()]
     allowed = {"latency", "pronunciation"}
@@ -51,7 +57,9 @@ def run(
         raise typer.BadParameter(f"unknown suite(s) {unsupported}; allowed: {sorted(allowed)}")
     if not suites:
         raise typer.BadParameter("provide at least one --suite")
-    if provider != "piper":
+    from ttsbench.adapters import LOCAL_PROVIDERS, get_adapter
+
+    if provider not in LOCAL_PROVIDERS:
         raise typer.BadParameter(f"provider '{provider}' is not implemented yet")
     if "pronunciation" in suites and not dataset:
         raise typer.BadParameter("the pronunciation suite requires --dataset")
@@ -59,8 +67,6 @@ def run(
         raise typer.BadParameter("provide --dataset or at least one --text")
     if fail_on is not None:
         typer.echo("note: --fail-on is reserved and currently ignored")
-
-    from ttsbench.adapters.piper import PiperAdapter
 
     if dataset:
         from ttsbench.datasets import load_dataset
@@ -75,14 +81,14 @@ def run(
             ],
         )
 
-    adapter = PiperAdapter(voice=voice, device=device)
+    adapter = get_adapter(provider, voice=voice, device=device)
     run_id = f"{provider}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
     out_dir = Path(output)
     audio_dir = out_dir / "audio"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    records = []
-    pron_results = []
+    records: list[SynthesisRecord] = []
+    pron_results: list[PronunciationResult] = []
 
     if "latency" in suites:
         items = [
@@ -163,14 +169,16 @@ def synthesize(
     device: str | None = typer.Option(None, "--device", help="Requested device."),
 ) -> None:
     """Synthesize one utterance and write a WAV file (one-off helper)."""
-    if provider != "piper":
-        raise typer.BadParameter(f"provider '{provider}' is not implemented yet")
-
-    from ttsbench.adapters.piper import PiperAdapter
+    from ttsbench.adapters import LOCAL_PROVIDERS, get_adapter
+    from ttsbench.adapters.base import SynthesisResult
     from ttsbench.utils import write_wav
 
-    adapter = PiperAdapter(voice=voice, device=device)
+    if provider not in LOCAL_PROVIDERS:
+        raise typer.BadParameter(f"provider '{provider}' is not implemented yet")
+
+    adapter = get_adapter(provider, voice=voice, device=device)
     result = adapter.synthesize(text)
+    assert isinstance(result, SynthesisResult)  # local providers are batch, not streaming
     path = write_wav(result.audio, result.sample_rate, output)
 
     typer.echo(
