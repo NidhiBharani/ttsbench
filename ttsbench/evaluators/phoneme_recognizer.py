@@ -99,6 +99,7 @@ class Wav2Vec2PhonemeRecognizer(PhonemeRecognizer):
 
     def recognize(self, wav_path: str | Path) -> list[str]:
         self._load()
+        assert self._model is not None  # set by _load()
         audio = _load_audio_16k_mono(wav_path)
         inputs = self._feature_extractor(  # type: ignore[misc]
             audio, sampling_rate=_TARGET_SR, return_tensors="pt"
