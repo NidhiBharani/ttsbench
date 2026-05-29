@@ -73,15 +73,31 @@ def test_get_adapter_factory():
     assert get_adapter("piper").provider == "piper"
 
 
+def _fake_load(self: KokoroAdapter) -> _FakeEngine:
+    self._engine = _FakeEngine()
+    return self._engine
+
+
+def _fake_synthesize(
+    self: KokoroAdapter, text: str, voice: str | None = None, **p: object
+) -> SynthesisResult:
+    return SynthesisResult(
+        audio=b"\x00\x00" * 12000,
+        sample_rate=24000,
+        audio_format=AudioFormat.PCM_S16LE,
+        duration_ms=500.0,
+    )
+
+
 def test_synthesize_cli_with_kokoro(tmp_path, monkeypatch):
     # Patch model load + engine so no download or onnxruntime session is needed.
-    monkeypatch.setattr(KokoroAdapter, "_load", lambda self: setattr(self, "_engine", _FakeEngine()) or self._engine)
-    monkeypatch.setattr(KokoroAdapter, "synthesize", lambda self, text, voice=None, **p: SynthesisResult(
-        audio=b"\x00\x00" * 12000, sample_rate=24000,
-        audio_format=AudioFormat.PCM_S16LE, duration_ms=500.0,
-    ))
+    monkeypatch.setattr(KokoroAdapter, "_load", _fake_load)
+    monkeypatch.setattr(KokoroAdapter, "synthesize", _fake_synthesize)
     out = tmp_path / "k.wav"
-    result = runner.invoke(app, ["synthesize", "--provider", "kokoro", "--text", "hi", "--output", str(out)])
+    result = runner.invoke(
+        app,
+        ["synthesize", "--provider", "kokoro", "--text", "hi", "--output", str(out)],
+    )
     assert result.exit_code == 0, result.output
     assert "provider=kokoro" in result.output
     with wave.open(str(out), "rb") as wav:
